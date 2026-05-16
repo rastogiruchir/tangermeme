@@ -119,7 +119,6 @@ def _b_hook(module, grad_input, grad_output):
 	grad_input = module._NON_LINEAR_OPS[type(module)](module, grad_input, 
 		grad_output)
 	if uncached:
-		del module.input
 		del module.output
 
 	return grad_input
@@ -320,11 +319,11 @@ def deep_lift_shap(model, X, args=None, target=0,  batch_size=32,
 
 	uncached_nonlinear_ops: iterable or None, optional
 		An optional iterable of module classes whose outputs should not be
-		cached during the forward pass. These classes must correspond to
-		registered non-linear operations. This can reduce memory usage for
-		large activations by recomputing the output from the cached input
-		during the backward pass. Classes that are not registered as nonlinear
-		ops are silently ignored. If None, cache all outputs. Default is None.
+		cached during the forward pass. For these modules, the output will
+		be recomputed on-the-fly during the backward pass, reducing memory
+		usage at the cost of increased runtime. This can be useful for large
+		models with large activations. If None, cache all outputs. Default is
+		None.
 
 	print_convergence_deltas: bool, optional
 		Whether to print the convergence deltas for each example when using

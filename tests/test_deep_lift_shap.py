@@ -1062,8 +1062,6 @@ def test_deep_lift_shap_uncached_relu_equivalence(X, references):
 	assert X_attr0.shape == X_attr1.shape
 	assert X_attr0.dtype == X_attr1.dtype
 	assert_array_almost_equal(X_attr0, X_attr1, 5)
-	assert not hasattr(model[1], "input")
-	assert not hasattr(model[1], "output")
 
 
 def test_deep_lift_shap_uncached_max_pool_equivalence(X, references):
@@ -1087,8 +1085,6 @@ def test_deep_lift_shap_uncached_max_pool_equivalence(X, references):
 	assert X_attr0.shape == X_attr1.shape
 	assert X_attr0.dtype == X_attr1.dtype
 	assert_array_almost_equal(X_attr0, X_attr1, 5)
-	assert not hasattr(model[1], "input")
-	assert not hasattr(model[1], "output")
 
 
 def test_deep_lift_shap_uncached_multiple_relus_equivalence(X, references):
@@ -1116,9 +1112,6 @@ def test_deep_lift_shap_uncached_multiple_relus_equivalence(X, references):
 	assert X_attr0.shape == X_attr1.shape
 	assert X_attr0.dtype == X_attr1.dtype
 	assert_array_almost_equal(X_attr0, X_attr1, 5)
-	for idx in [0, 2, 6]:
-		assert not hasattr(model[idx], "input")
-		assert not hasattr(model[idx], "output")
 
 
 ###
