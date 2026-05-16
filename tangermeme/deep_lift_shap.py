@@ -87,7 +87,9 @@ def _register_hooks(module):
 		return
 
 	module.handles = []
-	module.handles.append(module.register_forward_hook(_f_hook))
+	if type(module) not in getattr(module, "_UNCACHED_NON_LINEAR_OPS", set()):
+		module.handles.append(module.register_forward_hook(_f_hook))
+
 	module.handles.append(module.register_forward_pre_hook(_fp_hook))
 	module.handles.append(module.register_full_backward_hook(_b_hook))
 
@@ -109,8 +111,18 @@ def _f_hook(module, inputs, outputs):
 
 
 def _b_hook(module, grad_input, grad_output):
-	return module._NON_LINEAR_OPS[type(module)](module, grad_input, 
+	uncached = type(module) in getattr(module, "_UNCACHED_NON_LINEAR_OPS", set())
+	if uncached:
+		with torch.no_grad():
+			module.output = module.forward(module.input)
+
+	grad_input = module._NON_LINEAR_OPS[type(module)](module, grad_input, 
 		grad_output)
+	if uncached:
+		del module.input
+		del module.output
+
+	return grad_input
 
 
 def _nonlinear(module, grad_input, grad_output):
@@ -201,8 +213,9 @@ def _maxpool(module, grad_input, grad_output):
 def deep_lift_shap(model, X, args=None, target=0,  batch_size=32,
 	references=dinucleotide_shuffle, n_shuffles=20, return_references=False, 
 	hypothetical=False, warning_threshold=0.001, additional_nonlinear_ops=None,
-	print_convergence_deltas=False, raw_outputs=False, only_warn=False, 
-	dtype=None, device='cuda', random_state=None, verbose=False):
+	uncached_nonlinear_ops=None, print_convergence_deltas=False,
+	raw_outputs=False, only_warn=False, dtype=None, device='cuda',
+	random_state=None, verbose=False):
 	"""Calculate attributions for a set of sequences using DeepLIFT/SHAP.
 
 	This function will calculate the DeepLIFT/SHAP attributions on a set of
@@ -305,6 +318,14 @@ def deep_lift_shap(model, X, args=None, target=0,  batch_size=32,
 		with overlapping key names. If None, do not add any additional 
 		operations. Default is None.
 
+	uncached_nonlinear_ops: iterable or None, optional
+		An optional iterable of module classes whose outputs should not be
+		cached during the forward pass. These classes must correspond to
+		registered non-linear operations. This can reduce memory usage for
+		large activations by recomputing the output from the cached input
+		during the backward pass. Classes that are not registered as nonlinear
+		ops are silently ignored. If None, cache all outputs. Default is None.
+
 	print_convergence_deltas: bool, optional
 		Whether to print the convergence deltas for each example when using
 		DeepLiftShap. Default is False.
@@ -390,9 +411,18 @@ def deep_lift_shap(model, X, args=None, target=0,  batch_size=32,
 		for key, value in additional_nonlinear_ops.items():
 			_NON_LINEAR_OPS[key] = value
 
+	if uncached_nonlinear_ops is None:
+		uncached_nonlinear_ops = set()
+	else:
+		uncached_nonlinear_ops = {
+			module for module in uncached_nonlinear_ops
+			if module in _NON_LINEAR_OPS
+		}
+
 	model = model.to(device).eval()
 	for module in model.modules():
 		module._NON_LINEAR_OPS = _NON_LINEAR_OPS
+		module._UNCACHED_NON_LINEAR_OPS = uncached_nonlinear_ops
 
 	try:
 		model.apply(_register_hooks)
@@ -508,6 +538,7 @@ def deep_lift_shap(model, X, args=None, target=0,  batch_size=32,
 	model.apply(_clear_hooks)
 	for module in model.modules():
 		del(module._NON_LINEAR_OPS)
+		del(module._UNCACHED_NON_LINEAR_OPS)
 
 	attributions = torch.stack(attributions)
 

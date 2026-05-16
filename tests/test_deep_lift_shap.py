@@ -1038,6 +1038,89 @@ def test_deep_lift_shap_conv_relu_pool_linear_relu_linear(X):
 			warning_threshold=1e-5)
 
 
+### Now test some custom models with uncached layers
+
+
+def test_deep_lift_shap_uncached_relu_equivalence(X, references):
+	torch.manual_seed(0)
+
+	model = torch.nn.Sequential(
+		torch.nn.Conv1d(4, 8, (5,)),
+		torch.nn.ReLU(),
+		torch.nn.Flatten(),
+		torch.nn.Linear(768, 1)
+	)
+
+	with warnings.catch_warnings():
+		warnings.simplefilter("error", category=RuntimeWarning)
+		X_attr0 = deep_lift_shap(model, X, references=references, 
+			batch_size=1, device='cpu', random_state=0, warning_threshold=1e-5)
+		X_attr1 = deep_lift_shap(model, X, references=references, 
+			batch_size=1, device='cpu', random_state=0, warning_threshold=1e-5,
+			uncached_nonlinear_ops={torch.nn.ReLU})
+
+	assert X_attr0.shape == X_attr1.shape
+	assert X_attr0.dtype == X_attr1.dtype
+	assert_array_almost_equal(X_attr0, X_attr1, 5)
+	assert not hasattr(model[1], "input")
+	assert not hasattr(model[1], "output")
+
+
+def test_deep_lift_shap_uncached_max_pool_equivalence(X, references):
+	torch.manual_seed(0)
+
+	model = torch.nn.Sequential(
+		torch.nn.Conv1d(4, 8, (5,)),
+		torch.nn.MaxPool1d(4),
+		torch.nn.Flatten(),
+		torch.nn.Linear(192, 1)
+	)
+
+	with warnings.catch_warnings():
+		warnings.simplefilter("error", category=RuntimeWarning)
+		X_attr0 = deep_lift_shap(model, X, references=references, 
+			batch_size=1, device='cpu', random_state=0, warning_threshold=1e-5)
+		X_attr1 = deep_lift_shap(model, X, references=references, 
+			batch_size=1, device='cpu', random_state=0, warning_threshold=1e-5,
+			uncached_nonlinear_ops={torch.nn.MaxPool1d})
+
+	assert X_attr0.shape == X_attr1.shape
+	assert X_attr0.dtype == X_attr1.dtype
+	assert_array_almost_equal(X_attr0, X_attr1, 5)
+	assert not hasattr(model[1], "input")
+	assert not hasattr(model[1], "output")
+
+
+def test_deep_lift_shap_uncached_multiple_relus_equivalence(X, references):
+	torch.manual_seed(0)
+
+	model = torch.nn.Sequential(
+		torch.nn.ReLU(),
+		torch.nn.Conv1d(4, 8, (5,)),
+		torch.nn.ReLU(),
+		torch.nn.MaxPool1d(4),
+		torch.nn.Flatten(),
+		torch.nn.Linear(192, 10),
+		torch.nn.ReLU(),
+		torch.nn.Linear(10, 1)
+	)
+
+	with warnings.catch_warnings():
+		warnings.simplefilter("error", category=RuntimeWarning)
+		X_attr0 = deep_lift_shap(model, X, references=references, 
+			batch_size=1, device='cpu', random_state=0, warning_threshold=1e-5)
+		X_attr1 = deep_lift_shap(model, X, references=references, 
+			batch_size=1, device='cpu', random_state=0, warning_threshold=1e-5,
+			uncached_nonlinear_ops={torch.nn.ReLU})
+
+	assert X_attr0.shape == X_attr1.shape
+	assert X_attr0.dtype == X_attr1.dtype
+	assert_array_almost_equal(X_attr0, X_attr1, 5)
+	for idx in [0, 2, 6]:
+		assert not hasattr(model[idx], "input")
+		assert not hasattr(model[idx], "output")
+
+
 ###
 
 
